@@ -1,43 +1,73 @@
-<!-- jQuery, only if your old UI code needs it -->
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SMART FHIR App</title>
+</head>
 
-<!-- Modern SMART FHIR Client -->
-<script src="https://cdn.jsdelivr.net/npm/fhirclient/build/fhir-client.js"></script>
+<body>
 
-<script>
-  console.log("INDEX LOADED");
+  <h2>SMART FHIR App</h2>
 
-  FHIR.oauth2.ready()
-    .then(client => {
-      console.log("SMART client ready", client);
-      console.log("Patient ID:", client.patient.id);
+  <!-- Loading + error -->
+  <div id="loading">Loading...</div>
+  <div id="errors" style="color:red;"></div>
 
-      return client.request("Patient/" + client.patient.id);
-    })
-    .then(patient => {
-      console.log("Patient:", patient);
+  <!-- Patient info -->
+  <h3>Patient</h3>
+  <p>First Name: <span id="fname"></span></p>
+  <p>Last Name: <span id="lname"></span></p>
+  <p>Gender: <span id="gender"></span></p>
+  <p>DOB: <span id="birthdate"></span></p>
 
-      document.getElementById("loading").style.display = "none";
+  <!-- SMART Client -->
+  <script src="https://cdn.jsdelivr.net/npm/fhirclient/build/fhir-client.js"></script>
 
-      document.getElementById("fname").innerText =
-        patient.name?.[0]?.given?.[0] || "";
+  <script>
+    console.log("INDEX VERSION FINAL");
 
-      document.getElementById("lname").innerText =
-        patient.name?.[0]?.family || "";
+    FHIR.oauth2.ready()
+      .then(client => {
+        console.log("SMART ready");
+        console.log("Patient ID:", client.patient.id);
 
-      document.getElementById("gender").innerText =
-        patient.gender || "";
+        return client.request("Patient/" + client.patient.id);
+      })
+      .then(patient => {
+        console.log("Patient:", patient);
 
-      document.getElementById("birthdate").innerText =
-        patient.birthDate || "";
-    })
-    .catch(error => {
-      console.error("FHIR error:", error);
+        // hide loading
+        const loading = document.getElementById("loading");
+        if (loading) loading.style.display = "none";
 
-      document.getElementById("loading").style.display = "none";
-      document.getElementById("errors").innerHTML =
-        "<p>Failed to call FHIR Service</p><pre>" +
-        (error.message || JSON.stringify(error, null, 2)) +
-        "</pre>";
-    });
-</script>
+        // populate UI safely
+        document.getElementById("fname").innerText =
+          patient.name?.[0]?.given?.[0] || "";
+
+        document.getElementById("lname").innerText =
+          patient.name?.[0]?.family || "";
+
+        document.getElementById("gender").innerText =
+          patient.gender || "";
+
+        document.getElementById("birthdate").innerText =
+          patient.birthDate || "";
+      })
+      .catch(error => {
+        console.error("FHIR error:", error);
+
+        const loading = document.getElementById("loading");
+        if (loading) loading.style.display = "none";
+
+        const errors = document.getElementById("errors");
+        if (errors) {
+          errors.innerHTML =
+            "<p>Failed to call FHIR Service</p><pre>" +
+            (error.message || JSON.stringify(error, null, 2)) +
+            "</pre>";
+        }
+      });
+  </script>
+
+</body>
+</html>
