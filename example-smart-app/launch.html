@@ -21,14 +21,17 @@
     <!-- FHIR Client JS Library -->
     console.log("URL params:", window.location.search);
  <!--    <script src='https://cdn.jsdelivr.net/npm/fhirclient/build/fhir-client.js'></script> -->
-
+      <script>
+        console.log("LAUNCH VERSION V2");
+        console.log("URL params:", window.location.search);
+      </script>
     <script src='https://cdn.jsdelivr.net/npm/fhirclient/build/fhir-client.js?v=2'></script>
     
     <!-- Prevent session bleed caused by single threaded embedded browser and sessionStorage API -->
     <!-- https://github.com/cerner/fhir-client-cerner-additions -->
     <script>
       FHIR.oauth2.authorize({
-        'clientId': '14af5a1a-aa45-4b02-92bb-40adc79b30f2',
+        clientId: "14af5a1a-aa45-4b02-92bb-40adc79b30f2",
         scope: "launch openid fhirUser patient/Patient.read patient/Observation.read",
         redirectUri: "https://satishp2026.github.io/smart-on-fhir-tutorial/example-smart-app/",
         aud: "https://fhir-ehr.cerner.com/r4/ec2458f2-1e24-41c8-b71b-0e701af7583d"
