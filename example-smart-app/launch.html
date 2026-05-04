@@ -21,11 +21,17 @@
     <!-- FHIR Client JS Library -->
     console.log("URL params:", window.location.search);
  <!--    <script src='https://cdn.jsdelivr.net/npm/fhirclient/build/fhir-client.js'></script> -->
-      <script>
-        console.log("LAUNCH VERSION V2");
-        console.log("URL params:", window.location.search);
-      </script>
-    <script src='https://cdn.jsdelivr.net/npm/fhirclient/build/fhir-client.js?v=2'></script>
+<script>
+  console.log("LAUNCH PAGE LOADED");
+  console.log("Full URL:", window.location.href);
+  console.log("Search params:", window.location.search);
+
+  const params = new URLSearchParams(window.location.search);
+  console.log("iss:", params.get("iss"));
+  console.log("launch:", params.get("launch"));
+</script>
+    
+    <script src='https://cdn.jsdelivr.net/npm/fhirclient/build/fhir-client.js?v=3'></script>
     
     <!-- Prevent session bleed caused by single threaded embedded browser and sessionStorage API -->
     <!-- https://github.com/cerner/fhir-client-cerner-additions -->
