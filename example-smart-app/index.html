@@ -6,80 +6,93 @@
 </head>
 
 <body>
-
   <h2>SMART FHIR App</h2>
 
-  <!-- Loading + error -->
   <div id="loading">Loading...</div>
   <div id="errors" style="color:red;"></div>
 
-  <!-- Patient info -->
   <h3>Patient</h3>
   <p>First Name: <span id="fname"></span></p>
   <p>Last Name: <span id="lname"></span></p>
   <p>Gender: <span id="gender"></span></p>
   <p>DOB: <span id="birthdate"></span></p>
+  <p>Marital Status: <span id="maritalStatus"></span></p>
 
-  <!-- SMART Client -->
+  <h3>Address</h3>
+  <div id="address"></div>
+
+  <h3>Identifiers</h3>
+  <div id="identifier"></div>
+
   <script src="https://cdn.jsdelivr.net/npm/fhirclient/build/fhir-client.js"></script>
 
   <script>
-    console.log("INDEX VERSION WITH ADDRESS + IDENTIFIER");
+    console.log("INDEX VERSION SAFE FIELDS");
+
+    function setText(id, value) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.innerText = value || "";
+      } else {
+        console.warn("Missing HTML element:", id);
+      }
+    }
+
+    function setHtml(id, value) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.innerHTML = value || "";
+      } else {
+        console.warn("Missing HTML element:", id);
+      }
+    }
 
     FHIR.oauth2.ready()
       .then(client => {
         console.log("SMART ready");
+        console.log("Patient ID:", client.patient.id);
         return client.request("Patient/" + client.patient.id);
       })
       .then(patient => {
         console.log("Patient:", patient);
 
-        // Hide loading
         const loading = document.getElementById("loading");
         if (loading) loading.style.display = "none";
 
-        // Basic fields
-        document.getElementById("fname").innerText =
-          patient.name?.[0]?.given?.[0] || "";
+        setText("fname", patient.name?.[0]?.given?.[0]);
+        setText("lname", patient.name?.[0]?.family);
+        setText("gender", patient.gender);
+        setText("birthdate", patient.birthDate);
 
-        document.getElementById("lname").innerText =
-          patient.name?.[0]?.family || "";
-
-        document.getElementById("gender").innerText =
-          patient.gender || "";
-
-        document.getElementById("birthdate").innerText =
-          patient.birthDate || "";
-
-        document.getElementById("maritalStatus").innerText =
+        setText(
+          "maritalStatus",
           patient.maritalStatus?.text ||
-          patient.maritalStatus?.coding?.[0]?.display ||
-          "";
+          patient.maritalStatus?.coding?.[0]?.display
+        );
 
-        // Address (array)
-        const addressDiv = document.getElementById("address");
         if (patient.address && patient.address.length > 0) {
-          addressDiv.innerHTML = patient.address.map(addr => `
-            <div style="margin-bottom:10px;">
+          const addressHtml = patient.address.map(addr => `
+            <div>
               ${addr.line?.join(", ") || ""}<br>
               ${addr.city || ""}, ${addr.state || ""} ${addr.postalCode || ""}<br>
               ${addr.country || ""}
             </div>
-          `).join("");
+          `).join("<hr>");
+          setHtml("address", addressHtml);
         } else {
-          addressDiv.innerText = "No address available";
+          setText("address", "No address available");
         }
 
-        // Identifier (array)
-        const identifierDiv = document.getElementById("identifier");
         if (patient.identifier && patient.identifier.length > 0) {
-          identifierDiv.innerHTML = patient.identifier.map(id => `
-            <div style="margin-bottom:5px;">
-              ${id.system || ""} : ${id.value || ""}
+          const identifierHtml = patient.identifier.map(id => `
+            <div>
+              <strong>System:</strong> ${id.system || ""}<br>
+              <strong>Value:</strong> ${id.value || ""}
             </div>
-          `).join("");
+          `).join("<hr>");
+          setHtml("identifier", identifierHtml);
         } else {
-          identifierDiv.innerText = "No identifiers available";
+          setText("identifier", "No identifiers available");
         }
       })
       .catch(error => {
@@ -97,6 +110,5 @@
         }
       });
   </script>
-
 </body>
 </html>
