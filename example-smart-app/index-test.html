@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SMART FHIR App</title>
+</head>
+
+<body>
+
+  <h2>SMART FHIR App</h2>
+
+  <!-- Loading + error -->
+  <div id="loading">Loading...</div>
+  <div id="errors" style="color:red;"></div>
+
+  <!-- Patient info -->
+  <h3>Patient</h3>
+  <p>First Name: <span id="fname"></span></p>
+  <p>Last Name: <span id="lname"></span></p>
+  <p>Gender: <span id="gender"></span></p>
+  <p>DOB: <span id="birthdate"></span></p>
+
+  <!-- SMART Client -->
+  <script src="https://cdn.jsdelivr.net/npm/fhirclient/build/fhir-client.js"></script>
+
+  <script>
+    console.log("INDEX VERSION FINAL");
+
+    FHIR.oauth2.ready()
+      .then(client => {
+        console.log("SMART ready");
+        console.log("Patient ID:", client.patient.id);
+
+        return client.request("Patient/" + client.patient.id);
+      })
+      .then(patient => {
+        console.log("Patient:", patient);
+
+        // hide loading
+        const loading = document.getElementById("loading");
+        if (loading) loading.style.display = "none";
+
+        // populate UI safely
+        document.getElementById("fname").innerText =
+          patient.name?.[0]?.given?.[0] || "";
+
+        document.getElementById("lname").innerText =
+          patient.name?.[0]?.family || "";
+
+        document.getElementById("gender").innerText =
+          patient.gender || "";
+
+        document.getElementById("birthdate").innerText =
+          patient.birthDate || "";
+      })
+      .catch(error => {
+        console.error("FHIR error:", error);
+
+        const loading = document.getElementById("loading");
+        if (loading) loading.style.display = "none";
+
+        const errors = document.getElementById("errors");
+        if (errors) {
+          errors.innerHTML =
+            "<p>Failed to call FHIR Service</p><pre>" +
+            (error.message || JSON.stringify(error, null, 2)) +
+            "</pre>";
+        }
+      });
+  </script>
+
+</body>
+</html>
