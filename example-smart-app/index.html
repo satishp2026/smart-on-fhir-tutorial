@@ -24,23 +24,21 @@
   <script src="https://cdn.jsdelivr.net/npm/fhirclient/build/fhir-client.js"></script>
 
   <script>
-    console.log("INDEX VERSION FINAL");
+    console.log("INDEX VERSION WITH ADDRESS + IDENTIFIER");
 
     FHIR.oauth2.ready()
       .then(client => {
         console.log("SMART ready");
-        console.log("Patient ID:", client.patient.id);
-
         return client.request("Patient/" + client.patient.id);
       })
       .then(patient => {
         console.log("Patient:", patient);
 
-        // hide loading
+        // Hide loading
         const loading = document.getElementById("loading");
         if (loading) loading.style.display = "none";
 
-        // populate UI safely
+        // Basic fields
         document.getElementById("fname").innerText =
           patient.name?.[0]?.given?.[0] || "";
 
@@ -52,6 +50,37 @@
 
         document.getElementById("birthdate").innerText =
           patient.birthDate || "";
+
+        document.getElementById("maritalStatus").innerText =
+          patient.maritalStatus?.text ||
+          patient.maritalStatus?.coding?.[0]?.display ||
+          "";
+
+        // Address (array)
+        const addressDiv = document.getElementById("address");
+        if (patient.address && patient.address.length > 0) {
+          addressDiv.innerHTML = patient.address.map(addr => `
+            <div style="margin-bottom:10px;">
+              ${addr.line?.join(", ") || ""}<br>
+              ${addr.city || ""}, ${addr.state || ""} ${addr.postalCode || ""}<br>
+              ${addr.country || ""}
+            </div>
+          `).join("");
+        } else {
+          addressDiv.innerText = "No address available";
+        }
+
+        // Identifier (array)
+        const identifierDiv = document.getElementById("identifier");
+        if (patient.identifier && patient.identifier.length > 0) {
+          identifierDiv.innerHTML = patient.identifier.map(id => `
+            <div style="margin-bottom:5px;">
+              ${id.system || ""} : ${id.value || ""}
+            </div>
+          `).join("");
+        } else {
+          identifierDiv.innerText = "No identifiers available";
+        }
       })
       .catch(error => {
         console.error("FHIR error:", error);
