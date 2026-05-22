@@ -1,33 +1,161 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Genesys Cerner SMART FHIR App Integration</title>
+
+  <style>
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      margin: 20px;
+      color: #222;
+    }
+
+    .page-layout {
+      display: flex;
+      gap: 24px;
+      align-items: flex-start;
+    }
+
+    .patient-panel {
+      flex: 1;
+      min-width: 360px;
+    }
+
+    .genesys-panel {
+      width: 430px;
+      min-width: 430px;
+    }
+
+    .section-card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+      background: #fff;
+    }
+
+    .call-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      background: #2563eb;
+      color: white;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    button:disabled {
+      background: #aaa;
+      cursor: not-allowed;
+    }
+
+    iframe {
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      width: 400px;
+      height: 700px;
+    }
+
+    #errors {
+      color: red;
+      white-space: pre-wrap;
+    }
+
+    #genesysEvents {
+      font-size: 12px;
+      background: #f7f7f7;
+      border: 1px solid #ddd;
+      padding: 8px;
+      max-height: 160px;
+      overflow: auto;
+      white-space: pre-wrap;
+    }
+  </style>
 </head>
 
 <body>
   <h2>Patient Details</h2>
 
   <div id="loading">Loading...</div>
-  <div id="errors" style="color:red;"></div>
+  <div id="errors"></div>
 
-  <h3>Patient</h3>
-  <p>First Name: <span id="fname"></span></p>
-  <p>Last Name: <span id="lname"></span></p>
-  <p>Gender: <span id="gender"></span></p>
-  <p>DOB: <span id="birthdate"></span></p>
-  <p>Marital Status: <span id="maritalStatus"></span></p>
+  <div class="page-layout">
+    <div class="patient-panel">
+      <div class="section-card">
+        <h3>Patient</h3>
+        <p>First Name: <span id="fname"></span></p>
+        <p>Last Name: <span id="lname"></span></p>
+        <p>Gender: <span id="gender"></span></p>
+        <p>DOB: <span id="birthdate"></span></p>
+        <p>Marital Status: <span id="maritalStatus"></span></p>
+        <p>Phone: <span id="phoneDisplay">Not available</span></p>
 
-  <h3>Address</h3>
-  <div id="address"></div>
+        <div class="call-row">
+          <button id="callPatientBtn" disabled onclick="clickToDialPatient()">
+            Call Patient
+          </button>
+          <span id="callStatus"></span>
+        </div>
+      </div>
 
-  <h3>Identifiers</h3>
-  <div id="identifier"></div>
+      <div class="section-card">
+        <h3>Address</h3>
+        <div id="address"></div>
+      </div>
+
+      <div class="section-card">
+        <h3>Identifiers</h3>
+        <div id="identifier"></div>
+      </div>
+    </div>
+
+    <div class="genesys-panel">
+      <div class="section-card">
+        <h3>Genesys Cloud Embedded Client</h3>
+
+        <!--
+          Update this URL if your Genesys Cloud region is different.
+          US West 2 example: https://apps.usw2.pure.cloud/crm/index.html
+          US East example:   https://apps.mypurecloud.com/crm/index.html
+        -->
+        <iframe
+          id="genesysClient"
+          src="https://apps.usw2.pure.cloud/crm/index.html"
+          allow="microphone; autoplay">
+        </iframe>
+
+        <h4>Genesys Events</h4>
+        <div id="genesysEvents">Waiting for events...</div>
+      </div>
+    </div>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/fhirclient/build/fhir-client.js"></script>
 
   <script>
-    console.log("INDEX VERSION SAFE FIELDS");
+    console.log("INDEX VERSION: Cerner SMART + Genesys Embedded Click-to-Dial");
+
+    const GENESYS_ORIGIN = "https://apps.usw2.pure.cloud";
+
+    let currentPatientContext = {
+      personId: null,
+      encounterId: null,
+      patientId: null,
+      firstName: "",
+      lastName: "",
+      phone: ""
+    };
 
     function setText(id, value) {
       const el = document.getElementById(id);
@@ -47,10 +175,150 @@
       }
     }
 
+    function appendGenesysEvent(message, data) {
+      const el = document.getElementById("genesysEvents");
+      if (!el) return;
+
+      const timestamp = new Date().toISOString();
+      const payload = data ? "\n" + JSON.stringify(data, null, 2) : "";
+      el.innerText = `[${timestamp}] ${message}${payload}\n\n` + el.innerText;
+    }
+
+    function normalizePhone(phone) {
+      if (!phone) return "";
+
+      const digits = String(phone).replace(/\D/g, "");
+
+      if (digits.length === 10) {
+        return "+1" + digits;
+      }
+
+      if (digits.length === 11 && digits.startsWith("1")) {
+        return "+" + digits;
+      }
+
+      if (String(phone).startsWith("+")) {
+        return String(phone);
+      }
+
+      return digits ? "+" + digits : "";
+    }
+
+    function getBestPatientPhone(patient) {
+      if (!patient.telecom || !Array.isArray(patient.telecom)) {
+        return "";
+      }
+
+      const phoneEntries = patient.telecom.filter(t => t.system === "phone" && t.value);
+
+      if (!phoneEntries.length) {
+        return "";
+      }
+
+      const mobile = phoneEntries.find(t => t.use === "mobile");
+      const home = phoneEntries.find(t => t.use === "home");
+      const work = phoneEntries.find(t => t.use === "work");
+
+      return (mobile || home || work || phoneEntries[0]).value;
+    }
+
+    function updateCallButton(phoneNumber) {
+      const btn = document.getElementById("callPatientBtn");
+      const status = document.getElementById("callStatus");
+
+      if (!btn) return;
+
+      if (phoneNumber) {
+        btn.disabled = false;
+        if (status) status.innerText = "Ready to dial";
+      } else {
+        btn.disabled = true;
+        if (status) status.innerText = "No patient phone number available";
+      }
+    }
+
+    function clickToDialPatient() {
+      const phoneNumber = currentPatientContext.phone;
+
+      if (!phoneNumber) {
+        setText("callStatus", "No phone number available to dial.");
+        return;
+      }
+
+      clickToDial(phoneNumber);
+    }
+
+    function clickToDial(phoneNumber) {
+      const formattedNumber = normalizePhone(phoneNumber);
+      const genesysFrame = document.getElementById("genesysClient");
+
+      if (!formattedNumber) {
+        setText("callStatus", "Invalid phone number.");
+        return;
+      }
+
+      if (!genesysFrame || !genesysFrame.contentWindow) {
+        setText("callStatus", "Genesys client is not loaded.");
+        return;
+      }
+
+      const payload = {
+        type: "clickToDial",
+        data: {
+          number: formattedNumber,
+          autoPlace: true,
+          name: `${currentPatientContext.firstName || ""} ${currentPatientContext.lastName || ""}`.trim(),
+          attributes: {
+            source: "Cerner PowerChart MPage",
+            cernerPatientId: currentPatientContext.patientId || "",
+            cernerPersonId: currentPatientContext.personId || "",
+            cernerEncounterId: currentPatientContext.encounterId || ""
+          }
+        }
+      };
+
+      console.log("Sending clickToDial to Genesys:", payload);
+      appendGenesysEvent("Sending clickToDial", payload);
+
+      genesysFrame.contentWindow.postMessage(payload, GENESYS_ORIGIN);
+
+      setText("callStatus", "Dial request sent to Genesys Cloud.");
+    }
+
+    window.addEventListener("message", function(event) {
+      /*
+        In production, validate event.origin against your approved Genesys Cloud origins.
+        During testing, this logs all message events to help troubleshoot the embedded client.
+      */
+      console.log("Message event received:", event.origin, event.data);
+
+      if (event.origin && event.origin.includes("pure.cloud")) {
+        appendGenesysEvent("Genesys event received", {
+          origin: event.origin,
+          data: event.data
+        });
+      }
+
+      if (event.data && event.data.type === "screenPop") {
+        console.log("Screen pop data:", event.data);
+        appendGenesysEvent("Screen pop received", event.data);
+      }
+    });
+
     FHIR.oauth2.ready()
       .then(client => {
         console.log("SMART ready");
         console.log("Patient ID:", client.patient.id);
+
+        currentPatientContext.patientId = client.patient.id;
+
+        /*
+          Depending on launch context, encounter may or may not be available.
+          Keep these assignments defensive so the page does not fail.
+        */
+        currentPatientContext.encounterId =
+          client.encounter && client.encounter.id ? client.encounter.id : "";
+
         return client.request("Patient/" + client.patient.id);
       })
       .then(patient => {
@@ -59,8 +327,17 @@
         const loading = document.getElementById("loading");
         if (loading) loading.style.display = "none";
 
-        setText("fname", patient.name?.[0]?.given?.[0]);
-        setText("lname", patient.name?.[0]?.family);
+        const firstName = patient.name?.[0]?.given?.[0] || "";
+        const lastName = patient.name?.[0]?.family || "";
+        const phone = getBestPatientPhone(patient);
+        const formattedPhone = normalizePhone(phone);
+
+        currentPatientContext.firstName = firstName;
+        currentPatientContext.lastName = lastName;
+        currentPatientContext.phone = formattedPhone;
+
+        setText("fname", firstName);
+        setText("lname", lastName);
         setText("gender", patient.gender);
         setText("birthdate", patient.birthDate);
 
@@ -69,6 +346,9 @@
           patient.maritalStatus?.text ||
           patient.maritalStatus?.coding?.[0]?.display
         );
+
+        setText("phoneDisplay", formattedPhone || "No phone available");
+        updateCallButton(formattedPhone);
 
         if (patient.address && patient.address.length > 0) {
           const addressHtml = patient.address.map(addr => `
@@ -108,6 +388,8 @@
             (error.message || JSON.stringify(error, null, 2)) +
             "</pre>";
         }
+
+        updateCallButton("");
       });
   </script>
 </body>
